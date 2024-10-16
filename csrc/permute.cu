@@ -15,11 +15,6 @@
 
 #include "ATen/cuda/CUDAContext.h"
 
-#include "cutlass/arch/memory.h"
-#include "cutlass/arch/cache_operation.h"
-#include "cutlass/array.h"
-#include "cutlass/numeric_conversion.h"
-
 
 using torch::Tensor;
 
@@ -79,11 +74,8 @@ __global__ void moe_recover_topK_kernel(const T *input,
     extern __shared__ int8_t s_mem[];
     TCompute *s_prob = reinterpret_cast<TCompute *>(s_mem);
 
-    using FragmentLoadStore = cutlass::Array<T, kElementsPerAccess>;
-    using FragmentCompute = cutlass::Array<TCompute, kElementsPerAccess>;
-
-    cutlass::NumericArrayConverter<TCompute, T, kElementsPerAccess> src_converter;
-    cutlass::NumericArrayConverter<T, TCompute, kElementsPerAccess> dst_converter;
+    using FragmentLoadStore = T[kElementsPerAccess] ; 
+    using FragmentCompute = TCompute[kElementsPerAccess] ; 
 
     // each block corresponds to one source token
     const int source_token = blockIdx.x;
@@ -109,11 +101,15 @@ __global__ void moe_recover_topK_kernel(const T *input,
         if (source_row != -1)
         {
             const T *source_row_ptr = input + source_row * num_cols;
-
-            cutlass::arch::global_load<FragmentLoadStore, sizeof(FragmentLoadStore), cutlass::arch::CacheOperation::LastUse>(
-                frag_load_store, (source_row_ptr + i), true);
-            frag_sum = src_converter(frag_load_store);
-
+            // 1. data load to fragment by 128bit per thread 
+            // TODO: clean source_row_ptr cache 
+            *(float4*) (frag_load_store.data()) = *(float4*) (source_row_ptr + i) ; 
+            // 2. dtype converter 
+            #pragma unroll 
+            for(int j=0; j<kElementsPerAccess; ++j)
+            {
+                frag_sum[j] = static_cast<TCompute>(frag_load_store[j]);
+            }
             if (hasProb)
             {
                 frag_sum = frag_sum * s_prob[0];
@@ -121,8 +117,8 @@ __global__ void moe_recover_topK_kernel(const T *input,
         }
         else
         {
-            frag_sum.clear();
-        }
+            frag_sum.clear(); 
+        }     
 
         for (int k = 1; k < num_topK; k++)
         {
@@ -132,11 +128,14 @@ __global__ void moe_recover_topK_kernel(const T *input,
                 continue;
 
             const T *source_row_ptr = input + source_row * num_cols;
-
-            cutlass::arch::global_load<FragmentLoadStore, sizeof(FragmentLoadStore), cutlass::arch::CacheOperation::LastUse>(
-                frag_load_store, (source_row_ptr + i), true);
-            frag_elem = src_converter(frag_load_store);
-
+            // 1. data load 
+            *(float4*) (frag_load_store) = *(float4*) (source_row_ptr + i) ; 
+            // 2. dtype converter 
+            #pragma unroll 
+            for(int j=0; j<kElementsPerAccess; ++j)
+            {
+                frag_elem[j] = static_cast<TCompute>(frag_load_store[j]);
+            }
             if (hasProb)
             {
                 frag_elem = frag_elem * s_prob[k];
@@ -145,11 +144,16 @@ __global__ void moe_recover_topK_kernel(const T *input,
             for (int e = 0; e < kElementsPerAccess; e++)
             {
                 frag_sum.at(e) = frag_sum.at(e) + frag_elem.at(e);
-            }
+            }            
         }
 
         T *dest_row_ptr = unpermuted_output + source_token * num_cols;
-        frag_load_store = dst_converter(frag_sum);
+        // data converter
+        #pragma unroll 
+        for(int j=0; j<kElementsPerAccess; ++j)
+        {
+            frag_load_store[j] = static_cast<T>frag_sum[j]; 
+        }
         *(float4 *)(dest_row_ptr + i) = *(float4 *)(frag_load_store.data());
     }
 }
@@ -172,11 +176,8 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
     extern __shared__ int8_t s_mem[];
     TCompute *s_prob = reinterpret_cast<TCompute *>(s_mem);
 
-    using FragmentLoadStore = cutlass::Array<T, kElementsPerAccess>;
-    using FragmentCompute = cutlass::Array<TCompute, kElementsPerAccess>;
-
-    cutlass::NumericArrayConverter<TCompute, T, kElementsPerAccess> src_converter;
-    cutlass::NumericArrayConverter<T, TCompute, kElementsPerAccess> dst_converter;
+    using FragmentLoadStore = T[kElementsPerAccess];
+    using FragmentCompute = TCompute[kElementsPerAccess]; 
 
     const int source_token = blockIdx.x;
     const int tid = threadIdx.x;
@@ -196,9 +197,15 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
     const T *source_row_ptr = input_bwd + source_token * num_cols;
     for (int i = tid * kElementsPerAccess; i < num_cols; i += blockDim.x * kElementsPerAccess)
     {
-        cutlass::arch::global_load<FragmentLoadStore, sizeof(FragmentLoadStore), cutlass::arch::CacheOperation::LastUse>(
-            frag_load_store, (source_row_ptr + i), true);
-        FragmentCompute frag_src = src_converter(frag_load_store);
+        FragmentCompute frag_src ; 
+        // 1. data load to fragment by 128bit per thread 
+        *(float4*) (frag_load_store.data()) = *(float4*) (source_row_ptr + i) ; 
+        // 2. dtype converter 
+        #pragma unroll 
+        for(int j=0; j<kElementsPerAccess; ++j)
+        {
+            frag_src[j] = static_cast<TCompute>(frag_load_store[j]);
+        }        
 
         int index = source_token;
 
@@ -214,11 +221,21 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
 
             if (hasProb)
             {
-                frag_load_store = dst_converter(frag_src * s_prob[k]);
+                // frag_load_store = dst_converter(frag_src * s_prob[k]);
+                #pragma unroll
+                for(int j=0; j < kElementsPerAccess; ++j)
+                {
+                    frag_load_store[j] = static_cast<T>(frag_src[j] * s_prob[k]); 
+                }
             }
             else
             {
-                frag_load_store = dst_converter(frag_src);
+                // frag_load_store = dst_converter(frag_src);
+                #pragma unroll
+                for(int j=0; j < kElementsPerAccess; ++j)
+                {
+                    frag_load_store[j] = static_cast<T>(frag_src[j]); 
+                }
             }
 
             T *dest_row_ptr = act_grad + dest_row * num_cols;
@@ -227,9 +244,15 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
             if (hasProb)
             {
                 const T *input_fwd_ptr = input_fwd + dest_row * num_cols;
-                cutlass::arch::global_load<FragmentLoadStore, sizeof(FragmentLoadStore), cutlass::arch::CacheOperation::LastUse>(
-                    frag_load_store, (input_fwd_ptr + i), true);
-                FragmentCompute frag_input_fwd = src_converter(frag_load_store);
+                // cutlass::arch::global_load<FragmentLoadStore, sizeof(FragmentLoadStore), cutlass::arch::CacheOperation::LastUse>(
+                //     frag_load_store, (input_fwd_ptr + i), true);
+                *(float4*)(frag_load_store.data()) = *(float4*)(input_fwd_ptr + i); 
+                // FragmentCompute frag_input_fwd = src_converter(frag_load_store);
+                #pragma unroll
+                for(int j=0; j < kElementsPerAccess; ++j)
+                {
+                    frag_input_fwd[j] = static_cast<TCompute>(frag_load_store[j]); 
+                }               
 
                 for (int e = 0; e < kElementsPerAccess; e++)
                 {
@@ -533,9 +556,9 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
     }
     case at::ScalarType::Half:
     {
-        using dType = cutlass::half_t;
-        using dTypeCompute = cutlass::half_t;
-
+        using dType = __half ;
+        using dTypeCompute = __half; 
+        
         dType *input_ptr = get_ptr<dType>(input);
         dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
 
@@ -556,8 +579,8 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
 #ifdef ENABLE_BF16
     case at::ScalarType::BFloat16:
     {
-        using dType = cutlass::bfloat16_t;
-        using dTypeCompute = cutlass::bfloat16_t;
+        using dType = __nv_bfloat16 ;
+        using dTypeCompute = __nv_bfloat16 ; 
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
@@ -580,8 +603,8 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
 #ifdef ENABLE_FP8
     case at::ScalarType::Float8_e5m2:
     {
-        using dType = cutlass::float_e5m2_t;
-        using dTypeCompute = cutlass::half_t;
+        using dType = __nv_fp8_e5m2;
+        using dTypeCompute = __nv_fp8_e5m2;
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
@@ -602,8 +625,8 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
     }
     case at::ScalarType::Float8_e4m3fn:
     {
-        using dType = cutlass::float_e4m3_t;
-        using dTypeCompute = cutlass::half_t;
+        using dType = __nv_fp8_e4m3;
+        using dTypeCompute = __nv_fp8_e4m3;
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
@@ -682,8 +705,8 @@ Tensor moe_recover_topK_op(
     }
     case at::ScalarType::Half:
     {
-        using dType = cutlass::half_t;
-        using dTypeCompute = cutlass::half_t;
+        using dType = __half;
+        using dTypeCompute = __half;
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *unpermuted_output_ptr = get_ptr<dType>(unpermuted_output);
@@ -705,8 +728,8 @@ Tensor moe_recover_topK_op(
 #ifdef ENABLE_BF16
     case at::ScalarType::BFloat16:
     {
-        using dType = cutlass::bfloat16_t;
-        using dTypeCompute = cutlass::bfloat16_t;
+        using dType =  __nv_bfloat16 ;
+        using dTypeCompute =  __nv_bfloat16;
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *unpermuted_output_ptr = get_ptr<dType>(unpermuted_output);
@@ -729,8 +752,8 @@ Tensor moe_recover_topK_op(
 #ifdef ENABLE_FP8
     case at::ScalarType::Float8_e5m2:
     {
-        using dType = cutlass::float_e5m2_t;
-        using dTypeCompute = cutlass::half_t;
+        using dType = __nv_fp8_e5m2;
+        using dTypeCompute = __half;
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *unpermuted_output_ptr = get_ptr<dType>(unpermuted_output);
@@ -751,8 +774,8 @@ Tensor moe_recover_topK_op(
     }
     case at::ScalarType::Float8_e4m3fn:
     {
-        using dType = cutlass::float_e4m3_t;
-        using dTypeCompute = cutlass::half_t;
+        using dType = __nv_fp8_e4m3;
+        using dTypeCompute = __half;
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *unpermuted_output_ptr = get_ptr<dType>(unpermuted_output);
@@ -833,8 +856,8 @@ std::tuple<Tensor, Tensor> moe_recover_topK_bwd_op(
     }
     case at::ScalarType::Half:
     {
-        using dType = cutlass::half_t;
-        using dTypeCompute = cutlass::half_t;
+        using dType = __half;
+        using dTypeCompute = __half;
 
         dType *input_bwd_ptr = get_ptr<dType>(input_bwd);
         dType *input_fwd_ptr = get_ptr<dType>(input_fwd);
@@ -859,8 +882,8 @@ std::tuple<Tensor, Tensor> moe_recover_topK_bwd_op(
 #ifdef ENABLE_BF16
     case at::ScalarType::BFloat16:
     {
-        using dType = cutlass::bfloat16_t;
-        using dTypeCompute = cutlass::bfloat16_t;
+        using dType =  __nv_bfloat16;
+        using dTypeCompute =  __nv_bfloat16;
 
         dType *input_bwd_ptr = get_ptr<dType>(input_bwd);
         dType *input_fwd_ptr = get_ptr<dType>(input_fwd);
@@ -886,8 +909,8 @@ std::tuple<Tensor, Tensor> moe_recover_topK_bwd_op(
 #ifdef ENABLE_FP8
     case at::ScalarType::Float8_e5m2:
     {
-        using dType = cutlass::float_e5m2_t;
-        using dTypeCompute = cutlass::half_t;
+        using dType = __nv_fp8_e5m2;
+        using dTypeCompute = __half;
 
         dType *input_bwd_ptr = get_ptr<dType>(input_bwd);
         dType *input_fwd_ptr = get_ptr<dType>(input_fwd);
@@ -911,8 +934,8 @@ std::tuple<Tensor, Tensor> moe_recover_topK_bwd_op(
     }
     case at::ScalarType::Float8_e4m3fn:
     {
-        using dType = cutlass::float_e4m3_t;
-        using dTypeCompute = cutlass::half_t;
+        using dType = __nv_fp8_e4m3;
+        using dTypeCompute = __half;
 
         dType *input_bwd_ptr = get_ptr<dType>(input_bwd);
         dType *input_fwd_ptr = get_ptr<dType>(input_fwd);
