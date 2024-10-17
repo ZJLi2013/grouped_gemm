@@ -5,7 +5,7 @@
  ************************************************************************/
 
 #include "permute.h"
-#include <array> // for std::array 
+#include "gpu_array.h"
 
 #include <torch/torch.h>
 #include <cub/cub.cuh>
@@ -75,8 +75,8 @@ __global__ void moe_recover_topK_kernel(const T *input,
     extern __shared__ int8_t s_mem[];
     TCompute *s_prob = reinterpret_cast<TCompute *>(s_mem);
 
-    using FragmentLoadStore = std::array<T, kElementsPerAccess> ; 
-    using FragmentCompute = std::array<TCompute, kElementsPerAccess> ; 
+    using FragmentLoadStore = GPUArray<T, kElementsPerAccess> ; 
+    using FragmentCompute = GPUArray<TCompute, kElementsPerAccess> ; 
 
     // each block corresponds to one source token
     const int source_token = blockIdx.x;
@@ -104,7 +104,7 @@ __global__ void moe_recover_topK_kernel(const T *input,
             const T *source_row_ptr = input + source_row * num_cols;
             // 1. data load to fragment by 128bit per thread 
             // TODO: clean source_row_ptr cache 
-            *(float4*) (frag_load_store) = *(float4*) (source_row_ptr + i) ; 
+            *(reinterpret_cast<float4*>(&frag_load_store)) = *(float4*) (source_row_ptr + i) ; 
             // 2. dtype converter 
             #pragma unroll 
             for(int j=0; j<kElementsPerAccess; ++j)
@@ -131,7 +131,7 @@ __global__ void moe_recover_topK_kernel(const T *input,
 
             const T *source_row_ptr = input + source_row * num_cols;
             // 1. data load 
-            *(float4*) (frag_load_store) = *(float4*) (source_row_ptr + i) ; 
+            *(reinterpret_cast<float4*>(&frag_load_store)) = *(float4*) (source_row_ptr + i) ; 
             // 2. dtype converter 
             #pragma unroll 
             for(int j=0; j<kElementsPerAccess; ++j)
@@ -156,7 +156,7 @@ __global__ void moe_recover_topK_kernel(const T *input,
         {
             frag_load_store[j] = static_cast<T>(frag_sum[j]); 
         }
-        *(float4 *)(dest_row_ptr + i) = *(float4 *)(frag_load_store);
+        *(float4 *)(dest_row_ptr + i) = *(reinterpret_cast<float4*>(&frag_load_store));
     }
 }
 
@@ -178,8 +178,8 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
     extern __shared__ int8_t s_mem[];
     TCompute *s_prob = reinterpret_cast<TCompute *>(s_mem);
 
-    using FragmentLoadStore = std::array<T, kElementsPerAccess>;
-    using FragmentCompute = std::array<TCompute, kElementsPerAccess>; 
+    using FragmentLoadStore = GPUArray<T, kElementsPerAccess>;
+    using FragmentCompute = GPUArray<TCompute, kElementsPerAccess>; 
 
     const int source_token = blockIdx.x;
     const int tid = threadIdx.x;
@@ -202,7 +202,7 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
         FragmentCompute frag_src ; 
         FragmentCompute frag_input_fwd ; 
         // 1. data load to fragment by 128bit per thread 
-        *(float4*) (frag_load_store) = *(float4*) (source_row_ptr + i) ; 
+        *(reinterpret_cast<float4*>(&frag_load_store)) = *(float4*) (source_row_ptr + i) ; 
         // 2. dtype converter 
         #pragma unroll 
         for(int j=0; j<kElementsPerAccess; ++j)
@@ -224,7 +224,6 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
 
             if (hasProb)
             {
-                // frag_load_store = dst_converter(frag_src * s_prob[k]);
                 #pragma unroll
                 for(int j=0; j < kElementsPerAccess; ++j)
                 {
@@ -233,7 +232,6 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
             }
             else
             {
-                // frag_load_store = dst_converter(frag_src);
                 #pragma unroll
                 for(int j=0; j < kElementsPerAccess; ++j)
                 {
@@ -242,15 +240,12 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
             }
 
             T *dest_row_ptr = act_grad + dest_row * num_cols;
-            *(float4 *)(dest_row_ptr + i) = *(float4 *)(frag_load_store);
+            *(float4 *)(dest_row_ptr + i) = *(reinterpret_cast<float4*>(&frag_load_store));
 
             if (hasProb)
             {
                 const T *input_fwd_ptr = input_fwd + dest_row * num_cols;
-                // cutlass::arch::global_load<FragmentLoadStore, sizeof(FragmentLoadStore), cutlass::arch::CacheOperation::LastUse>(
-                //     frag_load_store, (input_fwd_ptr + i), true);
-                *(float4*)(frag_load_store) = *(float4*)(input_fwd_ptr + i); 
-                // FragmentCompute frag_input_fwd = src_converter(frag_load_store);
+                *(reinterpret_cast<float4*>(&frag_load_store)) = *(float4*)(input_fwd_ptr + i); 
                 #pragma unroll
                 for(int j=0; j < kElementsPerAccess; ++j)
                 {
