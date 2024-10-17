@@ -118,8 +118,7 @@ __global__ void moe_recover_topK_kernel(const T *input,
         }
         else
         {
-            // reset to 0 
-            frag_sum.fill(0); 
+            frag_sum.clear(); 
         }     
 
         for (int k = 1; k < num_topK; k++)
@@ -554,8 +553,8 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
     }
     case at::ScalarType::Half:
     {
-        using dType = __half ;
-        using dTypeCompute = __half; 
+        using dType = HalfWrapper ;
+        using dTypeCompute = HalfWrapper; 
         
         dType *input_ptr = get_ptr<dType>(input);
         dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
@@ -577,8 +576,8 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
 #ifdef ENABLE_BF16
     case at::ScalarType::BFloat16:
     {
-        using dType = __nv_bfloat16 ;
-        using dTypeCompute = __nv_bfloat16 ; 
+        using dType = Bfloat16Wrapper ;
+        using dTypeCompute = Bfloat16Wrapper ; 
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
@@ -602,7 +601,7 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
     case at::ScalarType::Float8_e5m2:
     {
         using dType = __nv_fp8_e5m2;
-        using dTypeCompute = __nv_fp8_e5m2;
+        using dTypeCompute = HalfWrapper;
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
@@ -623,8 +622,8 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
     }
     case at::ScalarType::Float8_e4m3fn:
     {
-        using dType = __nv_fp8_e4m3;
-        using dTypeCompute = __nv_fp8_e4m3;
+        using dType = FP8E4M3Wrapper;
+        using dTypeCompute = HalfWrapper;
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
