@@ -597,52 +597,52 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
         break;
     }
 #endif
-#ifdef ENABLE_FP8
-    case at::ScalarType::Float8_e5m2:
-    {
-        using dType = __nv_fp8_e5m2;
-        using dTypeCompute = HalfWrapper;
+// #ifdef ENABLE_FP8
+//     case at::ScalarType::Float8_e5m2:
+//     {
+//         using dType = __nv_fp8_e5m2;
+//         using dTypeCompute = HalfWrapper;
 
-        dType *input_ptr = get_ptr<dType>(input);
-        dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
+//         dType *input_ptr = get_ptr<dType>(input);
+//         dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
 
-        moe_permute_topK_kernel_launcher<dType, dTypeCompute, true, 16>(
-            input_ptr,
-            permuted_output_ptr,
-            sorted_row_id_ptr,
-            row_id_map_ptr,
-            nullptr,
-            num_tokens,
-            num_topK,
-            num_cols,
-            num_out_tokens,
-            stream);
+//         moe_permute_topK_kernel_launcher<dType, dTypeCompute, true, 16>(
+//             input_ptr,
+//             permuted_output_ptr,
+//             sorted_row_id_ptr,
+//             row_id_map_ptr,
+//             nullptr,
+//             num_tokens,
+//             num_topK,
+//             num_cols,
+//             num_out_tokens,
+//             stream);
 
-        break;
-    }
-    case at::ScalarType::Float8_e4m3fn:
-    {
-        using dType = FP8E4M3Wrapper;
-        using dTypeCompute = HalfWrapper;
+//         break;
+//     }
+//     case at::ScalarType::Float8_e4m3fn:
+//     {
+//         using dType = FP8E4M3Wrapper;
+//         using dTypeCompute = HalfWrapper;
 
-        dType *input_ptr = get_ptr<dType>(input);
-        dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
+//         dType *input_ptr = get_ptr<dType>(input);
+//         dType *permuted_output_ptr = get_ptr<dType>(permuted_output);
 
-        moe_permute_topK_kernel_launcher<dType, dTypeCompute, true, 16>(
-            input_ptr,
-            permuted_output_ptr,
-            sorted_row_id_ptr,
-            row_id_map_ptr,
-            nullptr,
-            num_tokens,
-            num_topK,
-            num_cols,
-            num_out_tokens,
-            stream);
+//         moe_permute_topK_kernel_launcher<dType, dTypeCompute, true, 16>(
+//             input_ptr,
+//             permuted_output_ptr,
+//             sorted_row_id_ptr,
+//             row_id_map_ptr,
+//             nullptr,
+//             num_tokens,
+//             num_topK,
+//             num_cols,
+//             num_out_tokens,
+//             stream);
 
-        break;
-    }
-#endif
+//         break;
+//     }
+// #endif
     default:
         throw std::runtime_error("Wrong activation tensor type.");
     }

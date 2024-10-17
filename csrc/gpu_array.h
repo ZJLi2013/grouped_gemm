@@ -88,39 +88,39 @@ class HalfWrapper {
             return __half2float(value);
         }
         __host__ __device__ HalfWrapper& operator=(float f) {
-            value = __float2bfloat16(f);
+            value = __float2half(f);
             return *this;
         }
 }; 
 
 
-class FP8E5M2Wrapper {
-private:
-    __nv_fp8_e5m2 value;
-public:
-    __host__ __device__ FP8E5M2Wrapper() : value(__float2fp8_e5m2(0.0f)) {}
-    __host__ __device__ FP8E5M2Wrapper(float f) : value(__float2fp8_e5m2(f)) {}
-    __host__ __device__ operator float() const {
-        return __fp8_e5m22float(value);
-    }
-    __host__ __device__ __nv_fp8_e5m2 raw() const {
-        return value;
-    }
-};
+// class FP8E5M2Wrapper {
+// private:
+//     __nv_fp8_e5m2 value;
+// public:
+//     __host__ __device__ FP8E5M2Wrapper() : value(__float2fp8_e5m2(0.0f)) {}
+//     __host__ __device__ FP8E5M2Wrapper(float f) : value(__float2fp8_e5m2(f)) {}
+//     __host__ __device__ operator float() const {
+//         return __fp8_e5m22float(value);
+//     }
+//     __host__ __device__ __nv_fp8_e5m2 raw() const {
+//         return value;
+//     }
+// };
 
 
-class FP8E4M3Wrapper {
-private:
-    __nv_fp8_e4m3 value; 
+// class FP8E4M3Wrapper {
+// private:
+//     __nv_fp8_e4m3 value; 
 
-public:
-    __host__ __device__ FP8E4M3Wrapper() : value(__float2fp8_e4m3(0.0f)) {}
-    __host__ __device__ FP8E4M3Wrapper(float f) : value(__float2fp8_e4m3(f)) {}
-    __host__ __device__ operator float() const {
-        return __fp8_e4m32float(value);
-    }
-    __host__ __device__ __nv_fp8_e4m3 raw() const {
-        return value;
-    }
-};
+// public:
+//     __host__ __device__ FP8E4M3Wrapper() : value(__float2fp8_e4m3(0.0f)) {}
+//     __host__ __device__ FP8E4M3Wrapper(float f) : value(__float2fp8_e4m3(f)) {}
+//     __host__ __device__ operator float() const {
+//         return __fp8_e4m32float(value);
+//     }
+//     __host__ __device__ __nv_fp8_e4m3 raw() const {
+//         return value;
+//     }
+// };
 
