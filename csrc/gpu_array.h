@@ -68,7 +68,8 @@ class Bfloat16Wrapper {
         __nv_bfloat16 value; // The wrapped __nv_bfloat16 value
     public:
         __host__ __device__ Bfloat16Wrapper() : value(__float2bfloat16(0.0f)) {}
-        __host__ __device__ Bfloat16Wrapper(float f) : value(__float2bfloat16(f)) {}
+        // __host__ __device__ Bfloat16Wrapper(float f) : value(__float2bfloat16(f)) {}
+        __host__ __device__ Bfloat16Wrapper(const float f) : value(__float2bfloat16(f)) {}
         __host__ __device__ operator float() const {
             return __bfloat162float(value);
         }
@@ -83,7 +84,8 @@ class HalfWrapper {
         __half value; 
     public:
         __host__ __device__ HalfWrapper() : value(__float2half(0.0f)) {}
-        __host__ __device__ HalfWrapper(float f) : value(__float2half(f)) {}
+        // __host__ __device__ HalfWrapper(float f) : value(__float2half(f)) {}
+        __host__ __device__ HalfWrapper(const float f) : value(__float2half(f)) {}
         __host__ __device__ operator float() const {
             return __half2float(value);
         }

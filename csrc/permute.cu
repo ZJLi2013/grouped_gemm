@@ -702,8 +702,8 @@ Tensor moe_recover_topK_op(
     }
     case at::ScalarType::Half:
     {
-        using dType = __half;
-        using dTypeCompute = __half;
+        using dType = HalfWrapper;
+        using dTypeCompute = HalfWrapper;
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *unpermuted_output_ptr = get_ptr<dType>(unpermuted_output);
@@ -725,8 +725,8 @@ Tensor moe_recover_topK_op(
 #ifdef ENABLE_BF16
     case at::ScalarType::BFloat16:
     {
-        using dType =  __nv_bfloat16 ;
-        using dTypeCompute =  __nv_bfloat16;
+        using dType =  Bfloat16Wrapper ;
+        using dTypeCompute =  Bfloat16Wrapper;
 
         dType *input_ptr = get_ptr<dType>(input);
         dType *unpermuted_output_ptr = get_ptr<dType>(unpermuted_output);
@@ -746,52 +746,52 @@ Tensor moe_recover_topK_op(
         break;
     }
 #endif
-#ifdef ENABLE_FP8
-    case at::ScalarType::Float8_e5m2:
-    {
-        using dType = __nv_fp8_e5m2;
-        using dTypeCompute = __half;
+// #ifdef ENABLE_FP8
+//     case at::ScalarType::Float8_e5m2:
+//     {
+//         using dType = __nv_fp8_e5m2;
+//         using dTypeCompute = __half;
 
-        dType *input_ptr = get_ptr<dType>(input);
-        dType *unpermuted_output_ptr = get_ptr<dType>(unpermuted_output);
+//         dType *input_ptr = get_ptr<dType>(input);
+//         dType *unpermuted_output_ptr = get_ptr<dType>(unpermuted_output);
 
-        moe_permute_topK_kernel_launcher<dType, dTypeCompute, false, 16>(
-            input_ptr,
-            unpermuted_output_ptr,
-            nullptr,
-            row_id_map_ptr,
-            prob_ptr,
-            num_tokens,
-            num_topK,
-            num_cols,
-            0,
-            stream);
+//         moe_permute_topK_kernel_launcher<dType, dTypeCompute, false, 16>(
+//             input_ptr,
+//             unpermuted_output_ptr,
+//             nullptr,
+//             row_id_map_ptr,
+//             prob_ptr,
+//             num_tokens,
+//             num_topK,
+//             num_cols,
+//             0,
+//             stream);
 
-        break;
-    }
-    case at::ScalarType::Float8_e4m3fn:
-    {
-        using dType = __nv_fp8_e4m3;
-        using dTypeCompute = __half;
+//         break;
+//     }
+//     case at::ScalarType::Float8_e4m3fn:
+//     {
+//         using dType = __nv_fp8_e4m3;
+//         using dTypeCompute = __half;
 
-        dType *input_ptr = get_ptr<dType>(input);
-        dType *unpermuted_output_ptr = get_ptr<dType>(unpermuted_output);
+//         dType *input_ptr = get_ptr<dType>(input);
+//         dType *unpermuted_output_ptr = get_ptr<dType>(unpermuted_output);
 
-        moe_permute_topK_kernel_launcher<dType, dTypeCompute, false, 16>(
-            input_ptr,
-            unpermuted_output_ptr,
-            nullptr,
-            row_id_map_ptr,
-            prob_ptr,
-            num_tokens,
-            num_topK,
-            num_cols,
-            0,
-            stream);
+//         moe_permute_topK_kernel_launcher<dType, dTypeCompute, false, 16>(
+//             input_ptr,
+//             unpermuted_output_ptr,
+//             nullptr,
+//             row_id_map_ptr,
+//             prob_ptr,
+//             num_tokens,
+//             num_topK,
+//             num_cols,
+//             0,
+//             stream);
 
-        break;
-    }
-#endif
+//         break;
+//     }
+// #endif
     default:
         throw std::runtime_error("Wrong activation tensor type.");
     }
@@ -853,8 +853,8 @@ std::tuple<Tensor, Tensor> moe_recover_topK_bwd_op(
     }
     case at::ScalarType::Half:
     {
-        using dType = __half;
-        using dTypeCompute = __half;
+        using dType = HalfWrapper;
+        using dTypeCompute = HalfWrapper;
 
         dType *input_bwd_ptr = get_ptr<dType>(input_bwd);
         dType *input_fwd_ptr = get_ptr<dType>(input_fwd);
@@ -879,8 +879,8 @@ std::tuple<Tensor, Tensor> moe_recover_topK_bwd_op(
 #ifdef ENABLE_BF16
     case at::ScalarType::BFloat16:
     {
-        using dType =  __nv_bfloat16;
-        using dTypeCompute =  __nv_bfloat16;
+        using dType =  Bfloat16Wrapper;
+        using dTypeCompute =  Bfloat16Wrapper;
 
         dType *input_bwd_ptr = get_ptr<dType>(input_bwd);
         dType *input_fwd_ptr = get_ptr<dType>(input_fwd);
@@ -903,58 +903,58 @@ std::tuple<Tensor, Tensor> moe_recover_topK_bwd_op(
         break;
     }
 #endif
-#ifdef ENABLE_FP8
-    case at::ScalarType::Float8_e5m2:
-    {
-        using dType = __nv_fp8_e5m2;
-        using dTypeCompute = __half;
+// #ifdef ENABLE_FP8
+//     case at::ScalarType::Float8_e5m2:
+//     {
+//         using dType = __nv_fp8_e5m2;
+//         using dTypeCompute = __half;
 
-        dType *input_bwd_ptr = get_ptr<dType>(input_bwd);
-        dType *input_fwd_ptr = get_ptr<dType>(input_fwd);
-        dType *act_grad_ptr = get_ptr<dType>(act_grad);
+//         dType *input_bwd_ptr = get_ptr<dType>(input_bwd);
+//         dType *input_fwd_ptr = get_ptr<dType>(input_fwd);
+//         dType *act_grad_ptr = get_ptr<dType>(act_grad);
 
-        moe_permute_topK_kernel_launcher<dType, dTypeCompute, true, 16>(
-            input_bwd_ptr,
-            act_grad_ptr,
-            nullptr,
-            row_id_map_ptr,
-            prob_ptr,
-            num_tokens,
-            num_topK,
-            num_cols,
-            0,
-            stream,
-            prob_grad_ptr,
-            input_fwd_ptr);
+//         moe_permute_topK_kernel_launcher<dType, dTypeCompute, true, 16>(
+//             input_bwd_ptr,
+//             act_grad_ptr,
+//             nullptr,
+//             row_id_map_ptr,
+//             prob_ptr,
+//             num_tokens,
+//             num_topK,
+//             num_cols,
+//             0,
+//             stream,
+//             prob_grad_ptr,
+//             input_fwd_ptr);
 
-        break;
-    }
-    case at::ScalarType::Float8_e4m3fn:
-    {
-        using dType = __nv_fp8_e4m3;
-        using dTypeCompute = __half;
+//         break;
+//     }
+//     case at::ScalarType::Float8_e4m3fn:
+//     {
+//         using dType = __nv_fp8_e4m3;
+//         using dTypeCompute = __half;
 
-        dType *input_bwd_ptr = get_ptr<dType>(input_bwd);
-        dType *input_fwd_ptr = get_ptr<dType>(input_fwd);
-        dType *act_grad_ptr = get_ptr<dType>(act_grad);
+//         dType *input_bwd_ptr = get_ptr<dType>(input_bwd);
+//         dType *input_fwd_ptr = get_ptr<dType>(input_fwd);
+//         dType *act_grad_ptr = get_ptr<dType>(act_grad);
 
-        moe_permute_topK_kernel_launcher<dType, dTypeCompute, true, 16>(
-            input_bwd_ptr,
-            act_grad_ptr,
-            nullptr,
-            row_id_map_ptr,
-            prob_ptr,
-            num_tokens,
-            num_topK,
-            num_cols,
-            0,
-            stream,
-            prob_grad_ptr,
-            input_fwd_ptr);
+//         moe_permute_topK_kernel_launcher<dType, dTypeCompute, true, 16>(
+//             input_bwd_ptr,
+//             act_grad_ptr,
+//             nullptr,
+//             row_id_map_ptr,
+//             prob_ptr,
+//             num_tokens,
+//             num_topK,
+//             num_cols,
+//             0,
+//             stream,
+//             prob_grad_ptr,
+//             input_fwd_ptr);
 
-        break;
-    }
-#endif
+//         break;
+//     }
+// #endif
     default:
         throw std::runtime_error("Wrong activation tensor type.");
     }
