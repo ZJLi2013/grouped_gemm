@@ -42,7 +42,7 @@ ext_modules = [
         "grouped_gemm_backend",
         ["csrc/ops.cu", "csrc/grouped_gemm.cu", "csrc/sinkhorn.cu", "csrc/permute.cu"],
         include_dirs = [
-            f"{cwd}/third_party/cutlass/include/"
+            # f"{cwd}/third_party/cutlass/include/"
         ],
         extra_compile_args={
             "cxx": [
