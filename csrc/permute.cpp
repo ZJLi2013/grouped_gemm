@@ -9,12 +9,11 @@
 
 #include <torch/torch.h>
 #include <hipcub/hipcub.hpp>
-#include <cuda_bf16.h>
+#include <hip/hip_bf16.h>
 
 #include "hip/hip_runtime.h"
-#include "device_launch_parameters.h"
-
-#include "ATen/cuda/HIPContext.h"
+// #include "device_launch_parameters.h"
+#include "ATen/hip/HIPContext.h"
 
 
 using torch::Tensor;

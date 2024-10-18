@@ -1,28 +1,31 @@
 import os
 from pathlib import Path
 from setuptools import setup, find_packages
-import torch
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+from torch.utils.cpp_extension import BuildExtension, CppExtension
 
 cwd = Path(os.path.dirname(os.path.abspath(__file__)))
 
 hipcc_flags = [
-    "-std=c++17",  # NOTE: CUTLASS requires c++17
+    "--amdgpu-target=gfx942",  # 
+    "-fPIC",
     "-DENABLE_BF16", # Enable BF16 for cuda_version >= 11
     # "-DENABLE_FP8",  # Enable FP8 for cuda_version >= 11.8
 ]
 
 ext_modules = [
-    CUDAExtension(
+    CppExtension(
         "grouped_gemm_backend",
         ["csrc/ops.cpp", "csrc/grouped_gemm.cpp", "csrc/sinkhorn.cpp", "csrc/permute.cpp"],
         include_dirs = ["/opt/rocm/include/"],
+        library_dirs = ["/opt/rocm/lib/"],
+        libraries = ["hiprtc", "hipblas"],  #link against hiprtc and hipblas 
         extra_compile_args={
-            "cxx": [
-                "-fopenmp", "-fPIC", "-Wno-strict-aliasing"
-            ],
+            # "cxx": [
+            #     "-fopenmp", "-fPIC", "-Wno-strict-aliasing"
+            # ],
             "hipcc": hipcc_flags,
-        }
+        },
+        extra_link_args = ["-L/opt/rocm/lib", "-lhiprtc", "-lhipblas"], #  Linking HIP runtime and HIPBL
     )
 ]
 

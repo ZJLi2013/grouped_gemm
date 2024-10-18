@@ -1,7 +1,7 @@
-#include "hip/hip_runtime.h"
 #include "sinkhorn.h"
 
-#include <ATen/cuda/HIPContext.h>
+#include <hip/hip_runtime.h>
+#include <ATen/hip/HIPContext.h>
 #include <torch/extension.h>
 #include <stdio.h>
 

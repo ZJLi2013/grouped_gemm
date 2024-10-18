@@ -1,5 +1,4 @@
-#include <cuda_runtime.h>
-#include <cuda_fp8.h>
+#include <hip_runtime.h>
 
 template <typename T, int N>
 struct GPUArray {

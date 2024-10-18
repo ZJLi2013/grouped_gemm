@@ -1,8 +1,8 @@
 #include "grouped_gemm.h"
 
-#include <ATen/cuda/HIPContext.h>
+#include <ATen/hip/HIPContext.h>
 #include <c10/util/BFloat16.h>
-#include <c10/cuda/CUDAStream.h>
+#include <c10/hip/HIPStream.h>
 #include <torch/extension.h>
 
 #include <hip/hip_runtime.h>
@@ -110,7 +110,7 @@ void CublasGroupedGemm(torch::Tensor a,
   c10::BFloat16* b_ptr = b.data_ptr<c10::BFloat16>();
   c10::BFloat16* c_ptr = c.data_ptr<c10::BFloat16>();
 
-  cublas_streams_wait_current(c10::cuda::getCurrentCUDAStream());
+  cublas_streams_wait_current(c10::hip::getCurrentHIPStream());
 
   for (int i = 0; i < bs; ++i) {
 
@@ -123,7 +123,7 @@ void CublasGroupedGemm(torch::Tensor a,
     c_ptr += m * n;
   }
 
-  cublas_current_wait_streams(c10::cuda::getCurrentCUDAStream());
+  cublas_current_wait_streams(c10::hip::getCurrentHIPStream());
 }
 
 void CublasGroupedGemmVariableK(torch::Tensor a,
@@ -138,7 +138,7 @@ void CublasGroupedGemmVariableK(torch::Tensor a,
   c10::BFloat16* b_ptr = b.data_ptr<c10::BFloat16>();
   c10::BFloat16* c_ptr = c.data_ptr<c10::BFloat16>();
 
-  cublas_streams_wait_current(c10::cuda::getCurrentCUDAStream());
+  cublas_streams_wait_current(c10::hip::getCurrentHIPStream());
 
   for (int i = 0; i < bs; ++i) {
     int64_t k = batch_sizes.data_ptr<int64_t>()[i];
@@ -150,7 +150,7 @@ void CublasGroupedGemmVariableK(torch::Tensor a,
     c_ptr += m * n;
   }
 
-  cublas_current_wait_streams(c10::cuda::getCurrentCUDAStream());
+  cublas_current_wait_streams(c10::hip::getCurrentHIPStream());
 }
 
 void GroupedGemmVariableK(torch::Tensor a,
