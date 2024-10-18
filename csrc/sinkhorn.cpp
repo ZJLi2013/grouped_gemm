@@ -1,6 +1,7 @@
+#include "hip/hip_runtime.h"
 #include "sinkhorn.h"
 
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 #include <torch/extension.h>
 #include <stdio.h>
 
@@ -91,16 +92,16 @@ void sinkhorn_launch(float *cost, int rows, int cols, float tol) {
     // Allocate enough shared memory for d0, d1, d1_old and abs_diff_sum
     size_t sharedMemSize = (rows + cols * 2 + cols) * sizeof(float);
     sinkhorn_kernel<<<blocksPerGrid, threadsPerBlock, sharedMemSize>>>(cost, rows, cols, tol);
-    // cudaDeviceSynchronize();
+    // hipDeviceSynchronize();
 }
 
 // Wrapper function
 torch::Tensor sinkhorn(torch::Tensor cost, const float tol) {
     sinkhorn_launch(cost.data_ptr<float>(), cost.size(0), cost.size(1), tol);
 
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        printf("CUDA Error: %s\n", cudaGetErrorString(err));
+    hipError_t err = hipGetLastError();
+    if (err != hipSuccess) {
+        printf("CUDA Error: %s\n", hipGetErrorString(err));
     }
     return cost;
 }

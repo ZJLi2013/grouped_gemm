@@ -1,9 +1,12 @@
 #include "grouped_gemm.h"
 
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/HIPContext.h>
 #include <c10/util/BFloat16.h>
 #include <c10/cuda/CUDAStream.h>
 #include <torch/extension.h>
+
+#include <hip/hip_runtime.h>
+#include <hipblas/hipblas.h>
 
 namespace grouped_gemm {
 
@@ -11,24 +14,24 @@ namespace grouped_gemm {
 
 #define CUDA_CALL(code)					    \
   do {                                                      \
-    cudaError_t status = code;                              \
-    std::string err = cudaGetErrorString(status);           \
-    TORCH_CHECK(status == cudaSuccess, err);		    \
+    hipError_t status = code;                              \
+    std::string err = hipGetErrorString(status);           \
+    TORCH_CHECK(status == hipSuccess, err);		    \
   } while (0)
 
 #define CUBLAS_CALL(code)					  \
   do {								  \
-    cublasStatus_t status = code;				  \
-    TORCH_CHECK(status == CUBLAS_STATUS_SUCCESS, "CuBLAS Error"); \
+    hipblasStatus_t status = code;				  \
+    TORCH_CHECK(status == HIPBLAS_STATUS_SUCCESS, "CuBLAS Error"); \
   } while (0)
 
 #define GROUPED_GEMM_STRINGIFY_HELPER(x) #x
 #define GROUPED_GEMM_STRINGIFY(x) \
   GROUPED_GEMM_STRINGIFY_HELPER(x)
 
-cublasHandle_t cublas_handle[NUM_STREAM];
-cudaStream_t cublas_stream[NUM_STREAM];
-cudaEvent_t cublas_event[NUM_STREAM];
+hipblasHandle_t cublas_handle[NUM_STREAM];
+hipStream_t cublas_stream[NUM_STREAM];
+hipEvent_t cublas_event[NUM_STREAM];
 bool cublas_init = false;
 
 void cublas_handle_init()
@@ -37,37 +40,37 @@ void cublas_handle_init()
 
     for (int i = 0; i < NUM_STREAM; i++)
     {
-        cudaStreamCreateWithFlags(&cublas_stream[i], cudaStreamNonBlocking);
-        cublasCreate(&cublas_handle[i]);
-        cublasSetStream(cublas_handle[i], cublas_stream[i]);
-        cudaEventCreate(&cublas_event[i]);
+        hipStreamCreateWithFlags(&cublas_stream[i], hipStreamNonBlocking);
+        hipblasCreate(&cublas_handle[i]);
+        hipblasSetStream(cublas_handle[i], cublas_stream[i]);
+        hipEventCreate(&cublas_event[i]);
     }
 }
 
-inline void cublas_current_wait_streams(cudaStream_t stream)
+inline void cublas_current_wait_streams(hipStream_t stream)
 {
     for (int s = 0; s < NUM_STREAM; s++)
     {
-        cudaEventRecord(cublas_event[s], cublas_stream[s]);
+        hipEventRecord(cublas_event[s], cublas_stream[s]);
     }
 
     for (int s = 0; s < NUM_STREAM; s++)
     {
-        cudaStreamWaitEvent(stream, cublas_event[s]);
+        hipStreamWaitEvent(stream, cublas_event[s]);
     }
 }
 
-inline void cublas_streams_wait_current(cudaStream_t stream)
+inline void cublas_streams_wait_current(hipStream_t stream)
 {
-    cudaEventRecord(cublas_event[0], stream);
+    hipEventRecord(cublas_event[0], stream);
 
     for (int s = 0; s < NUM_STREAM; s++)
     {
-        cudaStreamWaitEvent(cublas_stream[s], cublas_event[0]);
+        hipStreamWaitEvent(cublas_stream[s], cublas_event[0]);
     }
 }
 
-void CublasGemm(cublasHandle_t cublas_handle,
+void CublasGemm(hipblasHandle_t cublas_handle,
     c10::BFloat16 *a, int64_t a_rows, int64_t a_cols, bool trans_a,
 		c10::BFloat16 *b, int64_t b_rows, int64_t b_cols, bool trans_b,
 		c10::BFloat16 *c, int64_t c_rows, int64_t c_cols) {
@@ -77,19 +80,19 @@ void CublasGemm(cublasHandle_t cublas_handle,
 
   int lda = trans_a ? n : k;
   int ldb = trans_b ? k : m;
-  cublasOperation_t transpose_a = trans_a ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t transpose_b = trans_b ? CUBLAS_OP_T : CUBLAS_OP_N;
+  hipblasOperation_t transpose_a = trans_a ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+  hipblasOperation_t transpose_b = trans_b ? HIPBLAS_OP_T : HIPBLAS_OP_N;
 
 
   float alpha = 1.0, beta = 0.0;
-  CUBLAS_CALL(cublasGemmEx(cublas_handle,
+  CUBLAS_CALL(hipblasGemmEx_v2(cublas_handle,
 			   transpose_b, transpose_a,
 			   m, n, k, &alpha,
-			   b, CUDA_R_16BF, ldb,
-			   a, CUDA_R_16BF, lda,
+			   b, HIP_R_16BF, ldb,
+			   a, HIP_R_16BF, lda,
 			   &beta,
-			   c, CUDA_R_16BF, c_cols, CUDA_R_32F,
-			   CUBLAS_GEMM_DEFAULT));
+			   c, HIP_R_16BF, c_cols, HIP_R_32F,
+			   HIPBLAS_GEMM_DEFAULT));
 }
 
 void CublasGroupedGemm(torch::Tensor a,

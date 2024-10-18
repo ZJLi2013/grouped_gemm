@@ -8,13 +8,13 @@
 #include "gpu_array.h"
 
 #include <torch/torch.h>
-#include <cub/cub.cuh>
+#include <hipcub/hipcub.hpp>
 #include <cuda_bf16.h>
 
-#include "cuda_runtime.h"
+#include "hip/hip_runtime.h"
 #include "device_launch_parameters.h"
 
-#include "ATen/cuda/CUDAContext.h"
+#include "ATen/cuda/HIPContext.h"
 
 
 using torch::Tensor;
@@ -25,6 +25,11 @@ template <typename T>
 inline T *get_ptr(torch::Tensor &t)
 {
     return reinterpret_cast<T *>(t.data_ptr());
+}
+
+inline int __shfl_xor_sync(unsigned mask, int val, int laneMask, int warpSize=64) {
+    int result = __builtin_amdgcn_permlane_xor(val, laneMask, 0);
+    return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -267,7 +272,7 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
 
             for (int mask = 16; mask > 0; mask /= 2)
             {
-                accum[k] = accum[k] + __shfl_xor_sync(0xffffffff, accum[k], mask, 32);
+                accum[k] = accum[k] + __shfl_xor_sync(0xffffffff, accum[k], mask, 64);
             }
         }
 
@@ -294,7 +299,7 @@ void moe_permute_topK_kernel_launcher(
     const int num_topK,
     const int num_cols,
     const int num_out_tokens,
-    cudaStream_t stream,
+    hipStream_t stream,
     float *prob_grad = nullptr,
     const T *input_fwd = nullptr)
 {
@@ -490,7 +495,7 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
 
         size_t temp_storage_bytes = 0;
         int *temp_ptr = nullptr;
-        cub::DeviceRadixSort::SortPairs(nullptr, temp_storage_bytes,
+        hipcub::DeviceRadixSort::SortPairs(nullptr, temp_storage_bytes,
                                         temp_ptr, temp_ptr,
                                         temp_ptr, temp_ptr, max_expanded_token_num);
         Tensor temp_storage =
@@ -510,7 +515,7 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
     void *d_temp_storage = get_ptr<void>(workspace[3]);
     size_t temp_storage_bytes = std::numeric_limits<size_t>::max();
 
-    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
+    hipcub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
                                     indices_ptr, sorted_indices_ptr,
                                     row_id_ptr, sorted_row_id_ptr, num_tokens * num_topK);
 
