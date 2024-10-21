@@ -529,7 +529,7 @@ std::tuple<Tensor, Tensor, std::vector<Tensor>> moe_permute_topK_op(
         torch::empty({num_tokens * num_topK}, torch::dtype(torch::kInt32).device(torch::kCUDA).requires_grad(false));
 
     int *row_id_map_ptr = get_ptr<int>(row_id_map);
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
+    auto stream = at::cuda::getCurrentHIPStream().stream();
 
     switch (_st)
     {
@@ -678,7 +678,7 @@ Tensor moe_recover_topK_op(
 
     int *row_id_map_ptr = get_ptr<int>(row_id_map);
     float *prob_ptr = (prob.defined()) ? get_ptr<float>(prob) : nullptr;
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
+    auto stream = at::cuda::getCurrentHIPStream().stream();
 
     switch (_st)
     {
@@ -826,7 +826,7 @@ std::tuple<Tensor, Tensor> moe_recover_topK_bwd_op(
         torch::empty({num_tokens, num_topK}, torch::dtype(torch::kFloat32).device(torch::kCUDA).requires_grad(false));
     float *prob_grad_ptr = get_ptr<float>(prob_grad);
 
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
+    auto stream = at::cuda::getCurrentHIPStream().stream();
 
     switch (_st)
     {

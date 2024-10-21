@@ -9,6 +9,7 @@ import subprocess
 hipcc_flags = [
     "--amdgpu-target=gfx942",  
     "-fPIC",
+    "-DHIPBLAS_V2", # enable hipblas_v2 with hip_r_bf16
     "-DENABLE_BF16", # Enable BF16 for cuda_version >= 11
     # "-DENABLE_FP8",  # Enable FP8 for cuda_version >= 11.8
 ]
@@ -49,11 +50,13 @@ hip_extension_modules = [
     Extension(
         "grouped_gemm_backend",
         ["csrc/ops.cpp", "csrc/grouped_gemm.cpp", "csrc/sinkhorn.cpp", "csrc/permute.cpp"],
-        include_dirs = ["/opt/rocm/include/", torch.utils.cpp_extension.include_paths()],
-        library_dirs = ["/opt/rocm/lib/", os.path.join(torch.utils.cpp_extension.library_paths()[0], 'torch/lib') ],
+        include_dirs = ["/opt/rocm/include/"] + torch.utils.cpp_extension.include_paths() + ["/opt/conda/envs/py_3.10/include/python3.10/"],
+        library_dirs = ["/opt/rocm/lib/"] + torch.utils.cpp_extension.library_paths() + ["/opt/conda/envs/py_3.10/lib/"],
         libraries = ["hiprtc", "hipblas", "torch", "c10"],  
-        extra_compile_args=hipcc_flags; 
-        extra_link_args = ["-L/opt/rocm/lib", "-lhiprtc",  "-lamdhip64", "-lhipblas"], 
+        extra_compile_args=hipcc_flags, 
+        extra_link_args = ["-L/opt/rocm/lib", "-lhiprtc",  "-lamdhip64", "-lhipblas", \
+                           "-L/opt/conda/envs/py_3.10/lib", "-lpython3", \
+                           "-L/opt/conda/envs/py_3.10/lib/python3.10/site-packages/torch/lib", "-ltorch"], 
     )
 ]
 

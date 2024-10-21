@@ -6,6 +6,7 @@
 #include <torch/extension.h>
 
 #include <hip/hip_runtime.h>
+// #define HIPBLAS_V2
 #include <hipblas/hipblas.h>
 
 namespace grouped_gemm {
@@ -85,13 +86,13 @@ void CublasGemm(hipblasHandle_t cublas_handle,
 
 
   float alpha = 1.0, beta = 0.0;
-  CUBLAS_CALL(hipblasGemmEx_v2(cublas_handle,
+  CUBLAS_CALL(hipblasGemmEx(cublas_handle,
 			   transpose_b, transpose_a,
 			   m, n, k, &alpha,
 			   b, HIP_R_16BF, ldb,
 			   a, HIP_R_16BF, lda,
 			   &beta,
-			   c, HIP_R_16BF, c_cols, HIP_R_32F,
+			   c, HIP_R_16BF, c_cols, HIPBLAS_COMPUTE_32F,
 			   HIPBLAS_GEMM_DEFAULT));
 }
 
