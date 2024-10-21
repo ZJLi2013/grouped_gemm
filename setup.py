@@ -27,24 +27,30 @@ class HIPBuildExt(BuildExtension):
         if not os.path.exists(output_path):
             os.makedirs(output_dir)
         
-        hip_compile_flags = ext.extra_compile_args
-        hip_link_flags = ['-shared', '-fPIC'] + ext.extra_link_args
+        compile_flags = ext.extra_compile_args
+        link_flags = ['-shared', '-fPIC'] + ext.extra_link_args
         include_dirs = [f'-I{dir}' for dir in ext.include_dirs]        
 
         # Compile HIP source files manually
         object_files = []
         for source in ext.sources:
             obj_file = source.replace(".cpp", ".o")
-            compile_command = ['hipcc', '-c', '-o', obj_file, source] + hip_compile_flags + include_dirs
+            compile_command = ['hipcc', '-c', '-o', obj_file, source] + compile_flags + include_dirs
+            print(f"{compile_command}")
             print(f"Compiling {source} -> {obj_file}")
             subprocess.check_call(compile_command)
             object_files.append(obj_file)
 
         # Link object files to create the shared library
-        link_command = ['hipcc', '-o', output_path] + object_files + hip_link_flags
+        link_command = ['hipcc', '-o', output_path] + object_files + link_flags
+        print(f"{link_command}")
         print(f"Linking to create {output_path}")
         subprocess.check_call(link_command)
 
+hip_libs = ["hiprtc", "amdhip64",  "hipblas", "hipcub"]
+hip_link_libs = "-L/opt/rocm/lib/ " + " ".join([f"-l{lib}" for lib in hip_libs])
+torch_libs = ["torch", "torch_hip", "torch_python", "c10", "c10_hip"]
+torch_link_libs ="-L/opt/conda/envs/py_3.10/lib/python3.10/site-packages/torch/lib/ " + " ".join([f"-l{lib}" for lib in torch_libs])
 
 hip_extension_modules = [
     Extension(
@@ -52,11 +58,9 @@ hip_extension_modules = [
         ["csrc/ops.cpp", "csrc/grouped_gemm.cpp", "csrc/sinkhorn.cpp", "csrc/permute.cpp"],
         include_dirs = ["/opt/rocm/include/"] + torch.utils.cpp_extension.include_paths() + ["/opt/conda/envs/py_3.10/include/python3.10/"],
         library_dirs = ["/opt/rocm/lib/"] + torch.utils.cpp_extension.library_paths() + ["/opt/conda/envs/py_3.10/lib/"],
-        libraries = ["hiprtc", "hipblas", "torch", "c10"],  
-        extra_compile_args=hipcc_flags, 
-        extra_link_args = ["-L/opt/rocm/lib", "-lhiprtc",  "-lamdhip64", "-lhipblas", \
-                           "-L/opt/conda/envs/py_3.10/lib", "-lpython3", \
-                           "-L/opt/conda/envs/py_3.10/lib/python3.10/site-packages/torch/lib", "-ltorch"], 
+        libraries = hip_libs + torch_libs ,
+        extra_compile_args=hipcc_flags + ['-D_GLIBCXX_USE_CXX11_ABI=1']
+        extra_link_args = [ hip_link_libs , "-L/opt/conda/envs/py_3.10/lib/', '-lpython3", torch_link_libs], 
     )
 ]
 

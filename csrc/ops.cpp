@@ -3,6 +3,7 @@
 #include "sinkhorn.h"
 
 #include <torch/extension.h>
+#include <pybind11/pybind11.h>  // link to torch pybind11
 
 namespace grouped_gemm {
 
