@@ -4,17 +4,20 @@
  * See LICENSE for license information.
  ************************************************************************/
 
+#define HIP_ENABLE_WARP_SYNC_BUILTINS
+
 #include "permute.h"
 #include "gpu_array.h"
 
 #include <torch/torch.h>
 #include <hipcub/hipcub.hpp>
 #include <hip/hip_bf16.h>
+// #include <hip/hip_fp16.h>
 
-#include "hip/hip_runtime.h"
-// #include "device_launch_parameters.h"
+#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+#include <hip/device_functions.h>  // for amd_warp_sync_functions
 #include "ATen/hip/HIPContext.h"
-
 
 using torch::Tensor;
 
@@ -24,11 +27,6 @@ template <typename T>
 inline T *get_ptr(torch::Tensor &t)
 {
     return reinterpret_cast<T *>(t.data_ptr());
-}
-
-inline int __shfl_xor_sync(unsigned mask, int val, int laneMask, int warpSize=64) {
-    int result = __builtin_amdgcn_permlane_xor(val, laneMask, 0);
-    return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +76,7 @@ __global__ void moe_recover_topK_kernel(const T *input,
 {
     extern __shared__ int8_t s_mem[];
     TCompute *s_prob = reinterpret_cast<TCompute *>(s_mem);
+    
 
     using FragmentLoadStore = GPUArray<T, kElementsPerAccess> ; 
     using FragmentCompute = GPUArray<TCompute, kElementsPerAccess> ; 
@@ -181,6 +180,8 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
     extern __shared__ int8_t s_mem[];
     TCompute *s_prob = reinterpret_cast<TCompute *>(s_mem);
 
+    const unsigned long long AllThreads = 0xffffffff ; 
+
     using FragmentLoadStore = GPUArray<T, kElementsPerAccess>;
     using FragmentCompute = GPUArray<TCompute, kElementsPerAccess>; 
 
@@ -271,7 +272,7 @@ __global__ void moe_permute_topK_kernel(const T *input_bwd,
 
             for (int mask = 16; mask > 0; mask /= 2)
             {
-                accum[k] = accum[k] + __shfl_xor_sync(0xffffffff, accum[k], mask, 64);
+                accum[k] = accum[k] + __shfl_xor_sync(AllThreads, accum[k], mask);
             }
         }
 

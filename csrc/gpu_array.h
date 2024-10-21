@@ -1,4 +1,6 @@
 #include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h> 
+#include <hip/hip_bf16.h>  // __hip_bfloat16
 
 template <typename T, int N>
 struct GPUArray {
@@ -64,7 +66,7 @@ struct GPUArray {
 
 class Bfloat16Wrapper {
     private:
-        hip_bfloat16 value; // The wrapped hip_bfloat16 value
+        __hip_bfloat16 value; // The wrapped hip_bfloat16 value
     public:
         __host__ __device__ Bfloat16Wrapper() : value(__float2bfloat16(0.0f)) {}
         // __host__ __device__ Bfloat16Wrapper(float f) : value(__float2bfloat16(f)) {}
